@@ -1,115 +1,107 @@
 # 🤖 OCCRA Robot Code — Official (Juggernauts Team 1)
 
-This repository contains the official competition code for **Juggernauts Team 1** competing in the OCCRA Robotics League.
+This repository contains the official, single-file Java control code (`Robot.java`) for the **Juggernauts Team 1** robot competing in the OCCRA Robotics League.
 
+The code base is designed for **maximum reliability and rapid deployment** during competition. It is built upon the robust **WPILib TimedRobot** framework, utilizing a clean structure to manage hardware configuration, safety protocols, and complex control logic.
+
+## ⚙️ Core Technology & Architectural Decisions
 ---
 
-## 🚀 Overview & Technology Stack
+### Framework & Language
+The project uses **WPILib 2025** and is programmed in **Java 17**. The choice of Java 17 is crucial, as the 2025 WPILib version specifically supports this long-term support (LTS) version, providing stability and predictable performance on the RoboRIO.
 
-The robot program includes full teleop control, autonomous routines, mechanism management, safety features, and a custom Shuffleboard dashboard. This codebase is designed for **clarity, maintainability, and reliability** during competition.
+### Architectural Choice: TimedRobot
+Instead of a complex, layered Command-based architecture, we opted for the simpler **TimedRobot** model. This choice guarantees predictable execution timing and ensures all control loops are managed within the standard periodic functions (`robotPeriodic`, `teleopPeriodic`, etc.), minimizing overhead and making on-the-fly debugging easier during a short OCCRA match day.
 
-### Key Technologies
-
-| Feature | Details |
+| Feature | Detail |
 | :--- | :--- |
-| **Framework** | WPILib 2025 (Java) |
-| **Architecture** | Command-based style with TimedRobot |
 | **Language** | Java 17 |
-| **Build System** | GradleRIO |
-| **Motor Controllers** | CTRE TalonSRX and REV SparkMax |
+| **Framework** | WPILib 2025 (TimedRobot) |
+| **Drivetrain Controllers** | 4x CTRE TalonSRX (CAN IDs 1-4) |
+| **Mechanism Controllers** | 2x REV SparkMax (CAN IDs 5 & 6) |
+| **Control Interface** | 2x Xbox Controllers (Driver & Operator) |
 
 ---
 
-## 🧰 System Requirements
+## 🏎️ Drivetrain System Deep Dive
 
-### Software
-* **Java 17** (Required)
-    > **⚠️ Important:** WPILib 2025 does NOT support Java 18–21.
-* **WPILib 2025.3.2** or later
-* **VS Code** with WPILib Extension (Recommended)
-* GradleRIO (Included automatically)
+The drivetrain is a four-motor system controlled via two **WPI_TalonSRX** masters and two followers.
 
-### Hardware
-* RoboRIO (OCCRA-legal)
-* CTRE TalonSRX motor controllers
-* REV SparkMax motor controllers
-* Sensors (encoders, limit switches, etc.)
-* USB game controllers (Xbox recommended)
+### Safety and Configuration
+The drive system is configured with several critical safety features in `robotInit()`:
 
----
+* **Motor Inversion:** The right side motors are inverted to ensure that all motors drive forward with a single positive command input.
+* **Follower Configuration:** The rear motors (CAN IDs 2 & 4) are correctly set as followers to the front masters (CAN IDs 1 & 3), simplifying control via the `DifferentialDrive` utility.
+* **Brake Mode:** The `setNeutralMode(NeutralMode.Brake)` command is executed at startup and autonomous initialization to provide instant stopping power, critical for maneuverability and precision.
+* **Current Limiting (Protection):** To protect the motors and the robot's electrical system, a robust **Supply Current Limit** is configured on all four TalonSRX controllers: **40A Continuous** and **60A Peak** (with a 0.1-second surge time).
 
-## 🤖 Robot Code Summary
+### Hierarchical Drive Control (`teleopPeriodic`)
 
-### 1. 🏎️ Drivetrain System
+Drive inputs are processed in a strict hierarchy to ensure safety and responsiveness:
 
-The system uses four TalonSRX controllers with the right side inverted.
-
-* **Driving Styles (Shuffleboard Chooser):** Arcade Drive, Tank Drive, Curvature Drive
-* **Precision:** Nudge control using D-Pad for precision movements.
-* **Speed Limits:** Forward capped at **70%**, Turning capped at **60%**.
-* **Utility:** Automatic **180° turn** (A Button).
-* **Input Smoothing:** Joystick deadband and input smoothing applied.
-
-### 2. 🏗️ Mechanisms
-
-| Mechanism | Controller | CAN ID | Features |
-| :--- | :--- | :--- | :--- |
-| **Elevator** | Spark Max | 5 | Controlled by triggers. Power capped at **50%**. Current displayed on Shuffleboard. |
-| **Manipulator/Intake**| Spark Max | 6 | Controlled by Y-axis. **Intake** up to +80%; **Eject** up to –50%. |
-| | | | Status updates on Shuffleboard (`INTAKE` / `OUTPUT` / `OFF`). |
-
-### 3. 🎮 Control Modes (Shuffleboard Selectable)
-
-* **Solo Mode:** Driver controls everything.
-* **Co-Op Mode:** Driver = drivetrain, Operator = mechanisms.
-
-### 4. 🤖 Autonomous Routines
-
-Selectable on Shuffleboard and executed using a WPILib timer.
-
-* **Drive Forward:** Moves robot using timed forward power.
-* **Turn 180°:** Spins in place for a preset duration.
-
-### 5. 🔧 Safety & Monitoring
-
-* **Battery Voltage:** Low-voltage warning at `<10.5V`.
-* **Current Limiting:** TalonSRX set to **40A continuous, 60A peak**.
-* Monitoring of drive motor and mechanism currents.
-* Safe motor defaults on startup (`disabledInit`).
+1.  **Level 1: D-Pad Nudge (Highest Priority)**
+    * If the Driver's POV (D-Pad) is pressed, the robot executes a precision move at a slow **25% power (`NUDGE_SPEED`)**. This logic immediately **overrides and bypasses** all other joystick inputs, providing excellent fine control for lining up.
+2.  **Level 2: 180° Turn Macro (A Button)**
+    * Activated by the Driver's A button, a state machine controls a 1.0-second timed turn. This also takes precedence over normal joystick control while active, allowing the driver to quickly reorient the robot.
+3.  **Level 3: Joystick Drive (Primary Control)**
+    * **Input Scaling:** All joystick inputs are capped using **70% speed (`SPEED_SCALE`)** and **60% turn (`TURN_SCALE`)** to prevent the robot from being uncontrollable at full stick deflection.
+    * **Input Smoothing:** **Deadband (0.1)** is applied to eliminate joystick drift, and the turn input is **squared** (`Math.copySign(turn * turn, turn)`) to give the driver finer, lower-speed control around the center point.
+    * **Drive Modes:** The code correctly routes inputs for three user-selectable modes: `Arcade`, `Tank`, and `Curvature`.
 
 ---
 
-## 📊 Shuffleboard Dashboard
+## 🏗️ Mechanism Control Breakdown
 
-Three fully programmed tabs provide essential real-time feedback and control:
+All mechanism control uses proportional output based on controller inputs, with mechanism-specific speed limits enforced in code.
 
-1.  **Drive Tab:** Drive/Control mode choosers, real-time outputs, nudge indicator, mechanism currents, battery voltage, 180° turn status.
-2.  **Autonomous Tab:** Auto mode chooser, adjustable forward-drive time, auto status, battery voltage.
-3.  **Disabled Tab:** Diagnostic panel, battery voltage, and current draw statistics.
+### Elevator Subsystem (CAN 5)
+* **Control:** Uses the **Operator's or Driver's Triggers** (depending on Control Mode).
+* **Proportional Speed:** The difference between the Left and Right Trigger axes determines the direction and speed.
+* **Speed Limit:** The final output is capped at **50% (`ELEVATOR_MAX_SPEED`)** to prevent excessive motor strain and provide smooth lifting/lowering.
 
----
-
-## 🧱 Project Architecture
-
-The project follows the WPILib standard robot structure:
-
-| Function | Purpose |
-| :--- | :--- |
-| `robotInit()` | Hardware setup |
-| `robotPeriodic()`| Diagnostics & dashboard updates |
-| `autonomousPeriodic()`| Timed auto steps |
-| `teleopPeriodic()`| Driving & mechanism input |
-| `disabledInit()` | Safe shutdown behavior |
-
-### Vendor Libraries
-
-Vendor dependencies are stored in the `/vendordeps/` folder:
-
-* REV SparkMax
-* CTRE Phoenix
+### Manipulator / Intake (CAN 6)
+* **Control:** Uses the **Mechanism Controller's Right Y-Axis**.
+* **Asymmetrical Power:** The code enforces different maximum speeds for intake and output, reflecting different power requirements:
+    * **Intake (Stick Forward):** Scaled up to **+80% (`INTAKE_SPEED`)** for powerful collection.
+    * **Eject/Output (Stick Backward):** Scaled to **-50% (`OUTPUT_SPEED`)** for controlled scoring.
+* **Status Reporting:** The `manipulatorStatusEntry` displays the current action and actual power level on the Shuffleboard dashboard.
 
 ---
 
-## 🙌 Acknowledgements
+## 🎮 Operational Modes and Autonomous
 
-Special thanks to the programmers, OCCRA organizers, WPILib developers, and REV Robotics & CTRE engineers for their support.
+### Control Modes
+The `Control Mode Chooser` widget allows teams to quickly switch between staffing configurations:
+
+* **"Solo Mode":** Driver (Port 0) manages all movement and mechanism functions.
+* **"Co-Op Mode":** Driver (Port 0) manages only Drivetrain; Operator (Port 1) manages all Mechanisms.
+
+### Autonomous Routines
+Autonomous relies on the simple, reliable WPILib `Timer` class for time-based execution.
+
+* **Routines:** `Drive Forward` and `Turn 180°`.
+* **Configuration:** The duration for the `Drive Forward` routine is configurable via the `Auto Drive Time (s)` entry on the Autonomous tab.
+
+---
+
+## 📊 Comprehensive Shuffleboard Dashboard & Diagnostics
+
+The robot program includes a fully wired-up Shuffleboard dashboard across three dedicated tabs, using specific widgets for clear data presentation.
+
+### Live Diagnostic Data (`robotPeriodic`)
+The `robotPeriodic()` function continuously updates critical data:
+
+* **Drive Outputs:** Displays motor output percentages for Left and Right sides.
+* **Current Monitoring:** Calculates and displays aggregated current draw for the Left Drive, Right Drive, Elevator, and Manipulator.
+
+### Safety and Warning System
+* **Battery Voltage Warning:** A universal check triggers a highly visible warning on both the **Drive Tab** and the **Disabled Tab** if the main battery voltage drops **below 10.5V**.
+* **Disabled State Check (`disabledInit`):** When the robot disables, it checks the **Total Current Draw** across the PDH. If the draw is above 5.0A, a warning is logged to the `Disabled Tab`, alerting the team to potential short circuits or unexpected motor behavior before the next match.
+
+### Tab Contents Summary
+
+| Tab Name | Key Functionality | Example Widgets Used |
+| :--- | :--- | :--- |
+| **Drive** | Primary match-time interface. Shows live outputs, current health, and mode choosers. | Combo Box Chooser, Voltage View (for current), Dial, Number Bar. |
+| **Autonomous** | Pre-match configuration and status monitoring for autonomous routines. | Sendable Chooser, Text View, Voltage View (for battery). |
+| **Disabled** | Post-match diagnostics and safety checks. | Text View (for current check results), Battery Status Warning. |
