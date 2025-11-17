@@ -1,27 +1,25 @@
 package frc.robot;
 
-// --- WPILib Core Imports ---
-import edu.wpi.first.wpilibj.TimedRobot; // Base class for FRC robots
-import edu.wpi.first.wpilibj.XboxController; // Standard controller interface
-import edu.wpi.first.wpilibj.PowerDistribution; // Access to PDH/PDP diagnostics
-import edu.wpi.first.wpilibj.drive.DifferentialDrive; // Utility for two-sided drive systems
-import edu.wpi.first.wpilibj.Timer; // Timing utility for autonomous and macros
-
 // --- CTRE Imports (TalonSRX/VictorSPX) ---
 import com.ctre.phoenix.motorcontrol.NeutralMode; // For setting brake/coast
 import com.ctre.phoenix.motorcontrol.SupplyCurrentLimitConfiguration; // For motor protection
 import com.ctre.phoenix.motorcontrol.can.WPI_TalonSRX; // Motor controller class
-
+import com.revrobotics.spark.SparkLowLevel.MotorType; // Motor type (Brushed/Brushless)
 // --- REV Robotics Imports (Spark Max) ---
 import com.revrobotics.spark.SparkMax; // Motor controller class
-import com.revrobotics.spark.SparkLowLevel.MotorType; // Motor type (Brushed/Brushless)
 
-// --- Dashboard/GUI Imports (Shuffleboard/SmartDashboard) ---
-import edu.wpi.first.wpilibj.smartdashboard.SendableChooser; // Widget for selecting options
+import edu.wpi.first.networktables.GenericEntry; // Interface for NetworkTable data entries
+import edu.wpi.first.wpilibj.PowerDistribution; // Access to PDH/PDP diagnostics
+// --- WPILib Core Imports ---
+import edu.wpi.first.wpilibj.TimedRobot; // Base class for FRC robots
+import edu.wpi.first.wpilibj.Timer; // Timing utility for autonomous and macros
+import edu.wpi.first.wpilibj.XboxController; // Standard controller interface
+import edu.wpi.first.wpilibj.drive.DifferentialDrive; // Utility for two-sided drive systems
+import edu.wpi.first.wpilibj.shuffleboard.BuiltInWidgets; // Pre-made visual widgets
 import edu.wpi.first.wpilibj.shuffleboard.Shuffleboard; // Main Shuffleboard API
 import edu.wpi.first.wpilibj.shuffleboard.ShuffleboardTab; // Individual tabs on the dashboard
-import edu.wpi.first.wpilibj.shuffleboard.BuiltInWidgets; // Pre-made visual widgets
-import edu.wpi.first.networktables.GenericEntry; // Interface for NetworkTable data entries
+// --- Dashboard/GUI Imports (Shuffleboard/SmartDashboard) ---
+import edu.wpi.first.wpilibj.smartdashboard.SendableChooser; // Widget for selecting options
 
 /**
  * This class is the primary interface for operating the FRC robot.
@@ -85,8 +83,8 @@ public class Robot extends TimedRobot {
     private static final double TURN_SCALE = 0.6; // 60% max turning speed
     private static final double DEADBAND = 0.1; // Joystick input below this value is treated as zero
 
-    // New: Speed for the D-Pad Nudge/Bump control (25% power) - Increased from 0.15
-    private static final double NUDGE_SPEED = 0.25;
+    // New: Speed for the D-Pad Nudge/Bump control (50% power) - Increased from 0.15
+    private static final double NUDGE_SPEED = 0.40;
 
     // Variables and constants for the "Turn 180" macro
     private boolean turning180 = false; // State flag: true when the macro is running
@@ -366,185 +364,185 @@ public class Robot extends TimedRobot {
      * This function is called continuously during teleoperated mode.
      * Contains the main driver and operator control logic.
      */
-    @Override
-    public void teleopPeriodic() {
-        double speedScale = SPEED_SCALE;
-        double turnScale = TURN_SCALE;
-        
-        turningStatusEntry.setBoolean(turning180);
+   @Override
+   public void teleopPeriodic() {
+     double speedScale = SPEED_SCALE;
+     double turnScale = TURN_SCALE;
+     
+     turningStatusEntry.setBoolean(turning180);
 
-        // --- 1. D-Pad Nudge/Bump Control Logic (Highest Priority) ---
-        // Checks the Driver's D-Pad (POV) for precise, slow-speed movement.
-        int povAngle = driver.getPOV();
+     // --- 1. D-Pad Nudge/Bump Control Logic (Highest Priority) ---
+     // Checks the Driver's D-Pad (POV) for precise, slow-speed movement.
+     int povAngle = driver.getPOV();
 
-        if (povAngle != -1) {
-            // If the D-Pad is pressed, use the NUDGE speed and bypass joystick control
-            switch (povAngle) {
-                case 0: // Up: Forward Nudge
-                    drive.arcadeDrive(NUDGE_SPEED, 0.0);
-                    break;
-                case 180: // Down: Reverse Nudge
-                    drive.arcadeDrive(-NUDGE_SPEED, 0.0);
-                    break;
-                case 270: // Left: Turn Left Nudge
-                    drive.arcadeDrive(0.0, -NUDGE_SPEED);
-                    break;
-                case 90: // Right: Turn Right Nudge
-                    drive.arcadeDrive(0.0, NUDGE_SPEED);
-                    break;
-                case 45: // Up-Right: Forward + Turn Right Nudge
-                    drive.arcadeDrive(NUDGE_SPEED, NUDGE_SPEED);
-                    break;
-                case 135: // Down-Right: Reverse + Turn Right Nudge
-                    drive.arcadeDrive(-NUDGE_SPEED, NUDGE_SPEED);
-                    break;
-                case 225: // Down-Left: Reverse + Turn Left Nudge
-                    drive.arcadeDrive(-NUDGE_SPEED, -NUDGE_SPEED);
-                    break;
-                case 315: // Up-Left: Forward + Turn Left Nudge
-                    drive.arcadeDrive(NUDGE_SPEED, -NUDGE_SPEED);
-                    break;
-                default:
-                    drive.stopMotor();
-                    break;
-            }
-            // Crucial: Stop processing drive inputs from analog sticks if D-Pad is active
-            return; 
-        }
+     if (povAngle != -1) {
+       // If the D-Pad is pressed, use the NUDGE speed and bypass joystick control
+       switch (povAngle) {
+         case 0: // Up: Forward Nudge
+           drive.arcadeDrive(NUDGE_SPEED, 0.0);
+           break;
+         case 180: // Down: Reverse Nudge
+           drive.arcadeDrive(-NUDGE_SPEED, 0.0);
+           break;
+         case 270: // Left: Turn Left Nudge (FIX: Turned to positive NUDGE_SPEED)
+           drive.arcadeDrive(0.0, NUDGE_SPEED); 
+           break;
+         case 90: // Right: Turn Right Nudge (FIX: Turned to negative NUDGE_SPEED)
+           drive.arcadeDrive(0.0, -NUDGE_SPEED); 
+           break;
+         case 45: // Up-Right: Forward + Turn Right Nudge (FIX: Negative turn)
+           drive.arcadeDrive(NUDGE_SPEED, -NUDGE_SPEED);
+           break;
+         case 135: // Down-Right: Reverse + Turn Right Nudge (FIX: Negative turn)
+           drive.arcadeDrive(-NUDGE_SPEED, -NUDGE_SPEED);
+           break;
+         case 225: // Down-Left: Reverse + Turn Left Nudge (FIX: Positive turn)
+           drive.arcadeDrive(-NUDGE_SPEED, NUDGE_SPEED);
+           break;
+         case 315: // Up-Left: Forward + Turn Left Nudge (FIX: Positive turn)
+           drive.arcadeDrive(NUDGE_SPEED, NUDGE_SPEED);
+           break;
+         default:
+           drive.stopMotor();
+           break;
+       }
+       // Crucial: Stop processing drive inputs from analog sticks if D-Pad is active
+       return; 
+     }
 
-        // --- 180 Turn Macro Logic --- (Driver only)
-        if (driver.getAButtonPressed() && !turning180) {
-            turning180 = true;
-            turnTimer.reset();
-            turnTimer.start();
-        }
+     // --- 180 Turn Macro Logic --- (Driver only)
+     if (driver.getAButtonPressed() && !turning180) {
+       turning180 = true;
+       turnTimer.reset();
+       turnTimer.start();
+     }
 
-        if (turning180) {
-            if (turnTimer.get() < TURN_TIME) {
-                drive.tankDrive(TURN_SPEED, -TURN_SPEED);
-                return; // Prevents subsequent drive code from overriding the turn
-            } else {
-                drive.stopMotor();
-                turning180 = false;
-                turnTimer.stop();
-            }
-        }
+     if (turning180) {
+       if (turnTimer.get() < TURN_TIME) {
+         drive.tankDrive(TURN_SPEED, -TURN_SPEED);
+         return; // Prevents subsequent drive code from overriding the turn
+       } else {
+         drive.stopMotor();
+         turning180 = false;
+         turnTimer.stop();
+       }
+     }
 
-        // --- Control Mode Selection and Input Reading ---
-        String controlMode = controlModeChooser.getSelected();
-        if (controlMode == null) controlMode = SINGLE_OPERATOR; 
+     // --- Control Mode Selection and Input Reading ---
+     String controlMode = controlModeChooser.getSelected();
+     if (controlMode == null) controlMode = SINGLE_OPERATOR; 
 
-        // Determine which controller handles the mechanism inputs (Elevator, Manipulator)
-        XboxController mechController = (DUAL_OPERATOR.equals(controlMode)) ? operator : driver;
+     // Determine which controller handles the mechanism inputs (Elevator, Manipulator)
+     XboxController mechController = (DUAL_OPERATOR.equals(controlMode)) ? operator : driver;
 
-        // Initialize all movement variables
-        double forward = 0;
-        double turn = 0;
-        double left = 0;
-        double right = 0;
-        double elevatorSpeed = 0;
+     // Initialize all movement variables
+     double forward = 0;
+     double turn = 0;
+     double left = 0;
+     double right = 0;
+     double elevatorSpeed = 0;
 
-        // --- Drive and Mechanism Input Mapping ---
-        if (SINGLE_OPERATOR.equals(controlMode)) {
-            // Drive inputs
-            forward = -driver.getLeftY(); // LEFT STICK Y-AXIS for Speed (Arcade/Curvature)
-            turn = driver.getLeftX();    // LEFT STICK X-AXIS for Turning (Arcade/Curvature)
-            left = -driver.getLeftY();   // LEFT STICK Y-AXIS for Tank
-            right = -driver.getRightY(); // RIGHT STICK Y-AXIS for Tank
-            
-            // Mechanism inputs (from Driver)
-            double rightTrigger = driver.getRightTriggerAxis();
-            double leftTrigger = driver.getLeftTriggerAxis();
-            elevatorSpeed = (leftTrigger - rightTrigger) * ELEVATOR_MAX_SPEED;
+     // --- Drive and Mechanism Input Mapping ---
+     if (SINGLE_OPERATOR.equals(controlMode)) {
+       // Drive inputs
+       forward = -driver.getLeftY(); // LEFT STICK Y-AXIS for Speed (Arcade/Curvature)
+       turn = -driver.getLeftX();  // FIX: INVERTED to correct turning direction
+       left = -driver.getLeftY();  // LEFT STICK Y-AXIS for Tank
+       right = -driver.getRightY(); // RIGHT STICK Y-AXIS for Tank
+       
+       // Mechanism inputs (from Driver)
+       double rightTrigger = driver.getRightTriggerAxis();
+       double leftTrigger = driver.getLeftTriggerAxis();
+       elevatorSpeed = (leftTrigger - rightTrigger) * ELEVATOR_MAX_SPEED;
 
-            leftTriggerEntry.setDouble(leftTrigger);
-            rightTriggerEntry.setDouble(rightTrigger);
+       leftTriggerEntry.setDouble(leftTrigger);
+       rightTriggerEntry.setDouble(rightTrigger);
 
-        } else if (DUAL_OPERATOR.equals(controlMode)) {
-            // Drive inputs (from Driver)
-            forward = -driver.getLeftY(); // LEFT STICK Y-AXIS for Speed (Arcade/Curvature)
-            turn = driver.getLeftX();    // LEFT STICK X-AXIS for Turning (Arcade/Curvature)
-            left = -driver.getLeftY();   // LEFT STICK Y-AXIS for Tank
-            right = -driver.getRightY(); // RIGHT STICK Y-AXIS for Tank
-             
-            // Mechanism inputs (from Operator)
-            double rightTrigger = operator.getRightTriggerAxis();
-            double leftTrigger = operator.getLeftTriggerAxis();
-            elevatorSpeed = (leftTrigger - rightTrigger) * ELEVATOR_MAX_SPEED;
+     } else if (DUAL_OPERATOR.equals(controlMode)) {
+       // Drive inputs (from Driver)
+       forward = -driver.getLeftY(); // LEFT STICK Y-AXIS for Speed (Arcade/Curvature)
+       turn = -driver.getLeftX();  // FIX: INVERTED to correct turning direction
+       left = -driver.getLeftY();  // LEFT STICK Y-AXIS for Tank
+       right = -driver.getRightY(); // RIGHT STICK Y-AXIS for Tank
+       
+       // Mechanism inputs (from Operator)
+       double rightTrigger = operator.getRightTriggerAxis();
+       double leftTrigger = operator.getLeftTriggerAxis();
+       elevatorSpeed = (leftTrigger - rightTrigger) * ELEVATOR_MAX_SPEED;
 
-            leftTriggerEntry.setDouble(leftTrigger);
-            rightTriggerEntry.setDouble(rightTrigger);
-        }
+       leftTriggerEntry.setDouble(leftTrigger);
+       rightTriggerEntry.setDouble(rightTrigger);
+     }
 
-        // ---------------------------------------------------------------------
-        // --- 2. Variable Speed Manipulator Control Logic ---
-        // Uses mechController's Right Y-Axis for proportional speed control.
-        // ---------------------------------------------------------------------
-        double manipulatorInput = mechController.getRightY(); // -1.0 (Forward) to 1.0 (Backward)
-        double manipulatorOutput = 0.0;
-        
-        if (Math.abs(manipulatorInput) > DEADBAND) {
-            if (manipulatorInput < 0) {
-                // Stick Forward (Intake): Output is positive, scaled by INTAKE_SPEED
-                // The input is negative, so we multiply by -1 to get magnitude (0 to 1)
-                manipulatorOutput = -manipulatorInput * INTAKE_SPEED; 
-                manipulatorStatusEntry.setString("INTAKE (Prop: " + String.format("%.2f", manipulatorOutput) + ")");
-            } else {
-                // Stick Backward (Output): Output is negative, scaled by OUTPUT_SPEED (which is negative)
-                // The input is positive, so we scale by magnitude * OUTPUT_SPEED
-                manipulatorOutput = manipulatorInput * OUTPUT_SPEED;
-                manipulatorStatusEntry.setString("OUTPUT (Prop: " + String.format("%.2f", manipulatorOutput) + ")");
-            }
-        } else {
-            manipulatorOutput = 0.0;
-            manipulatorStatusEntry.setString("OFF");
-        }
+     // ---------------------------------------------------------------------
+     // --- 2. Variable Speed Manipulator Control Logic ---
+     // Uses mechController's Right Y-Axis for proportional speed control.
+     // ---------------------------------------------------------------------
+     double manipulatorInput = mechController.getRightY(); // -1.0 (Forward) to 1.0 (Backward)
+     double manipulatorOutput = 0.0;
+     
+     if (Math.abs(manipulatorInput) > DEADBAND) {
+       if (manipulatorInput < 0) {
+         // Stick Forward (Intake): Output is positive, scaled by INTAKE_SPEED
+         // The input is negative, so we multiply by -1 to get magnitude (0 to 1)
+         manipulatorOutput = -manipulatorInput * INTAKE_SPEED; 
+         manipulatorStatusEntry.setString("INTAKE (Prop: " + String.format("%.2f", manipulatorOutput) + ")");
+       } else {
+         // Stick Backward (Output): Output is negative, scaled by OUTPUT_SPEED (which is negative)
+         // The input is positive, so we scale by magnitude * OUTPUT_SPEED
+         manipulatorOutput = manipulatorInput * OUTPUT_SPEED;
+         manipulatorStatusEntry.setString("OUTPUT (Prop: " + String.format("%.2f", manipulatorOutput) + ")");
+       }
+     } else {
+       manipulatorOutput = 0.0;
+       manipulatorStatusEntry.setString("OFF");
+     }
 
-        manipulatorMotor.set(manipulatorOutput);
+     manipulatorMotor.set(manipulatorOutput);
 
 
-        // --- Drive Input Post-Processing ---
+     // --- Drive Input Post-Processing ---
 
-        // Apply Deadband
-        forward = applyDeadband(forward, DEADBAND);
-        turn = applyDeadband(turn, DEADBAND);
-        left = applyDeadband(left, DEADBAND);
-        right = applyDeadband(right, DEADBAND);
-        
-        // Square the turn input for finer control
-        turn = Math.copySign(turn * turn, turn);
+     // Apply Deadband
+     forward = applyDeadband(forward, DEADBAND);
+     turn = applyDeadband(turn, DEADBAND);
+     left = applyDeadband(left, DEADBAND);
+     right = applyDeadband(right, DEADBAND);
+     
+     // Square the turn input for finer control
+     turn = Math.copySign(turn * turn, turn);
 
-        // --- Drive Mode Execution ---
-        String mode = driveModeChooser.getSelected();
-        if (mode == null) mode = DRIVE_ARCADE;
-        currentDriveModeEntry.setString(mode);
+     // --- Drive Mode Execution ---
+     String mode = driveModeChooser.getSelected();
+     if (mode == null) mode = DRIVE_ARCADE;
+     currentDriveModeEntry.setString(mode);
 
-        switch (mode) {
-            case DRIVE_TANK:
-                // TANK drive uses the Left and Right Y axes (separate sticks)
-                drive.tankDrive(left * speedScale, right * speedScale);
-                break;
-            case DRIVE_CURVATURE:
-                // CURVATURE drive uses the Left Stick (Y for speed, X for turn)
-                drive.curvatureDrive(forward * speedScale, turn * turnScale, true);
-                break;
-            case DRIVE_ARCADE:
-            default:
-                // ARCADE drive uses the Left Stick (Y for speed, X for turn)
-                drive.arcadeDrive(forward * speedScale, turn * turnScale);
-                break;
-        }
+     switch (mode) {
+       case DRIVE_TANK:
+         // TANK drive uses the Left and Right Y axes (separate sticks)
+         drive.tankDrive(left * speedScale, right * speedScale);
+         break;
+       case DRIVE_CURVATURE:
+         // CURVATURE drive uses the Left Stick (Y for speed, X for turn)
+         drive.curvatureDrive(forward * speedScale, turn * turnScale, true);
+         break;
+       case DRIVE_ARCADE:
+       default:
+         // ARCADE drive uses the Left Stick (Y for speed, X for turn)
+         drive.arcadeDrive(forward * speedScale, turn * turnScale);
+         break;
+     }
 
-        // --- Elevator Control Execution ---
-        
-        // Apply deadband
-        if (Math.abs(elevatorSpeed) < 0.05) elevatorSpeed = 0;
-        
-        // Set motor speed (ONLY using the dedicated elevator motor)
-        elevatorMotor.set(elevatorSpeed);
-        
-        elevatorOutputEntry.setDouble(elevatorSpeed * 100.0 / ELEVATOR_MAX_SPEED); 
-    }
+     // --- Elevator Control Execution ---
+     
+     // Apply deadband
+     if (Math.abs(elevatorSpeed) < 0.05) elevatorSpeed = 0;
+     
+     // Set motor speed (ONLY using the dedicated elevator motor)
+     elevatorMotor.set(elevatorSpeed);
+     
+     elevatorOutputEntry.setDouble(elevatorSpeed * 100.0 / ELEVATOR_MAX_SPEED); 
+   }
 
     /**
      * Helper method to apply a deadband to a joystick input value.
