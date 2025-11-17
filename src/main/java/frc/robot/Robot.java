@@ -83,7 +83,7 @@ public class Robot extends TimedRobot {
     private static final double TURN_SCALE = 0.6; // 60% max turning speed
     private static final double DEADBAND = 0.1; // Joystick input below this value is treated as zero
 
-    // New: Speed for the D-Pad Nudge/Bump control (50% power) - Increased from 0.15
+    // New: Speed for the D-Pad Nudge/Bump control (40% power) - Increased from 0.15
     private static final double NUDGE_SPEED = 0.40;
 
     // Variables and constants for the "Turn 180" macro
