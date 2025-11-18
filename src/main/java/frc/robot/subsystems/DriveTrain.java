@@ -3,8 +3,13 @@ package frc.robot.subsystems;
 import com.ctre.phoenix.motorcontrol.NeutralMode;
 import com.ctre.phoenix.motorcontrol.SupplyCurrentLimitConfiguration;
 import com.ctre.phoenix.motorcontrol.can.WPI_TalonSRX;
+// *** FINAL CORRECT IMPORT FOR VELOCITY FIX ***
+import com.ctre.phoenix.sensors.SensorVelocityMeasPeriod; 
+// **********************************
+import com.ctre.phoenix.motorcontrol.FeedbackDevice;
 import edu.wpi.first.wpilibj.drive.DifferentialDrive;
 import edu.wpi.first.wpilibj2.command.SubsystemBase;
+import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 import frc.robot.Constants;
 
 public class DriveTrain extends SubsystemBase {
@@ -18,6 +23,7 @@ public class DriveTrain extends SubsystemBase {
     
     public void initialize() {
         configureMotors();
+        resetEncoders(); 
     }
     
     private void configureMotors() {
@@ -31,6 +37,24 @@ public class DriveTrain extends SubsystemBase {
         rightFront.configOpenloopRamp(0.25);
         rightRear.configOpenloopRamp(0.25);
         
+        // **ENCODER ADDITION:** Configure the encoders on the leader motors
+        leftFront.configSelectedFeedbackSensor(FeedbackDevice.QuadEncoder, 0, 10);
+        rightFront.configSelectedFeedbackSensor(FeedbackDevice.QuadEncoder, 0, 10);
+        
+        // ******************************************************************************
+        // *** FINAL FIX: USE THE CORRECT, NON-DEPRECATED ENUM ***
+        // This resolves the compilation error: configVelocityMeasurementPeriod(SensorVelocityMeasPeriod, int)
+        
+        leftFront.configVelocityMeasurementPeriod(SensorVelocityMeasPeriod.Period_100Ms, 10); 
+        leftFront.configVelocityMeasurementWindow(10, 10); 
+
+        rightFront.configVelocityMeasurementPeriod(SensorVelocityMeasPeriod.Period_100Ms, 10); 
+        rightFront.configVelocityMeasurementWindow(10, 10); 
+        // ******************************************************************************
+        
+        leftFront.setSensorPhase(true); 
+        rightFront.setSensorPhase(true); 
+
         setNeutralMode(NeutralMode.Brake);
         
         leftRear.follow(leftFront);
@@ -38,6 +62,8 @@ public class DriveTrain extends SubsystemBase {
         
         rightFront.setInverted(true);
         rightRear.setInverted(true);
+        
+        rightFront.setSensorPhase(true); 
         
         SupplyCurrentLimitConfiguration limit = new SupplyCurrentLimitConfiguration(true, 40, 60, 0.1);
         leftFront.configSupplyCurrentLimit(limit);
@@ -79,7 +105,28 @@ public class DriveTrain extends SubsystemBase {
     public void stop() {
         drive.stopMotor();
     }
-    
+
+    public double getLeftEncoderPosition() {
+        return leftFront.getSelectedSensorPosition(0);
+    }
+
+    public double getRightEncoderPosition() {
+        return rightFront.getSelectedSensorPosition(0);
+    }
+
+    public double getLeftEncoderVelocity() {
+        return leftFront.getSelectedSensorVelocity(0);
+    }
+
+    public double getRightEncoderVelocity() {
+        return rightFront.getSelectedSensorVelocity(0);
+    }
+
+    public void resetEncoders() {
+        leftFront.setSelectedSensorPosition(0, 0, 10);
+        rightFront.setSelectedSensorPosition(0, 0, 10);
+    }
+
     public double getLeftOutput() { return leftFront.getMotorOutputPercent() * 100.0; }
     public double getRightOutput() { return rightFront.getMotorOutputPercent() * 100.0; }
     public double getLeftCurrent() { return leftFront.getSupplyCurrent() + leftRear.getSupplyCurrent(); }
@@ -96,5 +143,19 @@ public class DriveTrain extends SubsystemBase {
     public boolean isTurning180() { return isTurning180; }
     
     @Override
-    public void periodic() {}
+    public void periodic() {
+        SmartDashboard.putNumber(
+            "Drive/Left Encoder Position (Ticks)", 
+            getLeftEncoderPosition()
+        );
+        SmartDashboard.putNumber(
+            "Drive/Right Encoder Position (Ticks)", 
+            getRightEncoderPosition()
+        );
+
+        SmartDashboard.putNumber(
+            "Drive/Left Motor Current", 
+            getLeftCurrent()
+        );
+    }
 }

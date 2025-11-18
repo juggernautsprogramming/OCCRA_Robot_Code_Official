@@ -91,7 +91,11 @@ public class Robot extends TimedRobot {
     private GenericEntry batteryWarningEntryDisabled;
     private GenericEntry currentDriveModeEntry;
     private GenericEntry motorCurrentsDisabledEntry;
-
+    // Encoder
+    private GenericEntry leftEncoderPositionEntry;
+    private GenericEntry rightEncoderPositionEntry;
+    private GenericEntry leftEncoderVelocityEntry;
+    private GenericEntry rightEncoderVelocityEntry;
     // --- Choosers ---
     private final SendableChooser<String> controlModeChooser = new SendableChooser<>();
     private final SendableChooser<String> driveModeChooser = new SendableChooser<>();
@@ -128,94 +132,102 @@ public class Robot extends TimedRobot {
         // Drive Tab Setup
         // =======================================================================
 
-        // Row 0: Modes and Status
+        // Row 0 (Y=0): Modes, Choosers, and Warnings
         driveTab.add("Control Mode", controlModeChooser)
                 .withWidget(BuiltInWidgets.kComboBoxChooser)
-                .withPosition(0, 0).withSize(3, 1);
+                .withPosition(0, 0).withSize(2, 1);
                 
         driveTab.add("Drive Mode", driveModeChooser)
                 .withWidget(BuiltInWidgets.kComboBoxChooser)
-                .withPosition(3, 0).withSize(3, 1);
+                .withPosition(2, 0).withSize(2, 1);
 
         currentDriveModeEntry = driveTab.add("Current Drive Mode", DRIVE_ARCADE)
-                .withWidget(BuiltInWidgets.kTextView)
-                .withPosition(6, 0).withSize(3, 1)
+                .withPosition(4, 0).withSize(2, 1)
                 .getEntry();
 
-        turningStatusEntry = driveTab.add("180 Turn Active", false)
-                .withWidget(BuiltInWidgets.kBooleanBox)
-                .withPosition(9, 0).withSize(1, 1)
+        batteryWarningEntryDrive = driveTab.add("Battery Status", "OK")
+                .withPosition(6, 0).withSize(4, 1)
                 .getEntry();
-        
-        // Row 1: Drive Train Live Stats
-        leftDriveCurrentEntry = driveTab.add("Left Current (A)", 0.0)
-                .withWidget(BuiltInWidgets.kVoltageView)
-                .withPosition(0, 1).withSize(3, 1)
-                .getEntry();
-
-        rightDriveCurrentEntry = driveTab.add("Right Current (A)", 0.0)
-                .withWidget(BuiltInWidgets.kVoltageView)
-                .withPosition(3, 1).withSize(3, 1)
-                .getEntry();
-
+                
+        // Row 1 (Y=1): Drive Motor Feedback (Output and Current)
         leftDriveOutputEntry = driveTab.add("Left Output (%)", 0.0)
                 .withWidget(BuiltInWidgets.kDial)
-                .withPosition(6, 1).withSize(2, 1)
+                .withPosition(0, 1).withSize(2, 1)
                 .getEntry();
 
         rightDriveOutputEntry = driveTab.add("Right Output (%)", 0.0)
                 .withWidget(BuiltInWidgets.kDial)
-                .withPosition(8, 1).withSize(2, 1)
+                .withPosition(2, 1).withSize(2, 1)
                 .getEntry();
 
-        // Row 2: Mechanism Stats
+        leftDriveCurrentEntry = driveTab.add("Left Current (A)", 0.0)
+                .withPosition(4, 1).withSize(3, 1)
+                .getEntry();
+
+        rightDriveCurrentEntry = driveTab.add("Right Current (A)", 0.0)
+                .withPosition(7, 1).withSize(3, 1)
+                .getEntry();
+
+        // Row 2 (Y=2): Encoder Positions and Drive Status
+        leftEncoderPositionEntry = driveTab.add("Left Position (Ticks)", 0.0)
+                .withPosition(0, 2).withSize(3, 1)
+                .getEntry();
+
+        rightEncoderPositionEntry = driveTab.add("Right Position (Ticks)", 0.0)
+                .withPosition(3, 2).withSize(3, 1)
+                .getEntry();
+
+        turningStatusEntry = driveTab.add("180 Turn Active", false)
+                .withWidget(BuiltInWidgets.kBooleanBox)
+                .withPosition(6, 2).withSize(2, 1)
+                .getEntry();
+        
+        // Combine Top/Bottom limits to save space (must be done in a group)
+        // Or if you only want the boolean boxes:
+        bottomLimitEntry = driveTab.add("Bottom Limit", false)
+                .withWidget(BuiltInWidgets.kBooleanBox)
+                .withPosition(8, 2).withSize(1, 1)
+                .getEntry();
+        topLimitEntry = driveTab.add("Top Limit", false)
+                .withWidget(BuiltInWidgets.kBooleanBox)
+                .withPosition(9, 2).withSize(1, 1)
+                .getEntry();
+
+
+        // Row 3 (Y=3): Mechanisms
         elevatorOutputEntry = driveTab.add("Elevator Output (%)", 0)
                 .withWidget(BuiltInWidgets.kDial)
-                .withPosition(0, 2).withSize(2, 1)
+                .withPosition(0, 3).withSize(2, 1)
                 .getEntry();
 
         elevatorCurrentEntry = driveTab.add("Elevator Current (A)", 0.0)
-                .withWidget(BuiltInWidgets.kNumberBar)
-                .withPosition(2, 2).withSize(2, 1)
+                .withPosition(2, 3).withSize(2, 1)
                 .getEntry();
 
         manipulatorCurrentEntry = driveTab.add("Manipulator Current (A)", 0.0)
-            .withWidget(BuiltInWidgets.kNumberBar)
-            .withPosition(4, 2).withSize(3, 1)
-            .getEntry();
+                .withPosition(4, 3).withSize(3, 1)
+                .getEntry();
         
         manipulatorStatusEntry = driveTab.add("Manipulator Status", "OFF")
-            .withWidget(BuiltInWidgets.kTextView)
-            .withPosition(7, 2).withSize(3, 1)
-            .getEntry();
-
-        // Row 3: Trigger Inputs and Battery Warning
-        leftTriggerEntry = driveTab.add("Left Trigger (Elevator Down)", 0)
-                .withWidget(BuiltInWidgets.kNumberBar)
-                .withPosition(0, 3).withSize(3, 1)
+                .withPosition(7, 3).withSize(3, 1)
                 .getEntry();
 
-        rightTriggerEntry = driveTab.add("Right Trigger (Elevator Up)", 0)
-                .withWidget(BuiltInWidgets.kNumberBar)
-                .withPosition(3, 3).withSize(3, 1)
-                .getEntry();
-                
-        batteryWarningEntryDrive = driveTab.add("Battery Status", "OK")
-                .withWidget(BuiltInWidgets.kTextView)
-                .withPosition(6, 3).withSize(4, 1)
-                .getEntry();
-                
-        // Row 4: Limit Switches
-        bottomLimitEntry = driveTab.add("Bottom Limit Hit", false)
-                .withWidget(BuiltInWidgets.kBooleanBox)
+        // Row 4 (Y=4): Triggers and Encoder Velocity
+        leftTriggerEntry = driveTab.add("Left Trigger (Down)", 0)
                 .withPosition(0, 4).withSize(2, 1)
                 .getEntry();
-                
-        topLimitEntry = driveTab.add("Top Limit Hit", false)
-                .withWidget(BuiltInWidgets.kBooleanBox)
+
+        rightTriggerEntry = driveTab.add("Right Trigger (Up)", 0)
                 .withPosition(2, 4).withSize(2, 1)
                 .getEntry();
-
+        
+        leftEncoderVelocityEntry = driveTab.add("Left Velocity (t/100ms)", 0.0)
+                .withPosition(4, 4).withSize(3, 1)
+                .getEntry();
+        
+        rightEncoderVelocityEntry = driveTab.add("Right Velocity (t/100ms)", 0.0)
+                .withPosition(7, 4).withSize(3, 1)
+                .getEntry();
         // =======================================================================
         // Autonomous Tab Setup
         // =======================================================================
@@ -304,7 +316,11 @@ public class Robot extends TimedRobot {
         leftDriveCurrentEntry.setDouble(driveTrain.getLeftCurrent());
         rightDriveCurrentEntry.setDouble(driveTrain.getRightCurrent());
         turningStatusEntry.setBoolean(driveTrain.isTurning180());
-
+        // Drive train encoder stats
+                leftEncoderPositionEntry.setDouble(driveTrain.getLeftEncoderPosition());
+                rightEncoderPositionEntry.setDouble(driveTrain.getRightEncoderPosition());
+                leftEncoderVelocityEntry.setDouble(driveTrain.getLeftEncoderVelocity());
+                rightEncoderVelocityEntry.setDouble(driveTrain.getRightEncoderVelocity());
         // Elevator stats
         elevatorOutputEntry.setDouble(elevator.getOutput());
         elevatorCurrentEntry.setDouble(elevator.getCurrent());
