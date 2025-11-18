@@ -9,6 +9,7 @@ import com.revrobotics.spark.SparkLowLevel.MotorType; // Enum to specify motor t
 import com.revrobotics.spark.SparkMax; // Motor controller class for REV Spark Max (used for mechanisms)
 
 import edu.wpi.first.networktables.GenericEntry; // Interface for creating and updating NetworkTable/Shuffleboard data entries
+import edu.wpi.first.wpilibj.DigitalInput;
 import edu.wpi.first.wpilibj.PowerDistribution; // Access to Power Distribution Hub (PDH) diagnostics (voltage, current)
 // --- WPILib Core Imports ---
 import edu.wpi.first.wpilibj.TimedRobot; // Base class for FRC robots, provides fixed-rate periodic methods
@@ -47,7 +48,13 @@ public class Robot extends TimedRobot {
     // Note: These are initialized in robotInit() to correctly specify MotorType
     private SparkMax elevatorMotor; // Motor ID 5: Controls Up/Down movement
     private SparkMax manipulatorMotor; // Motor ID 6: Controls Intake/Output action
-
+    //Elevator Limit switches (On DIO ports 0,1)
+    //Defining the DIO port Numbers the switches are connected to
+    private static final int DIO_ELEVATOR_BOTTOM_LIMIT = 0;
+    private static final int DIO_ELEVATOR_TOP_LIMIT = 1;
+    //initiate DIO objects
+    private final DigitalInput bottomLimitSwitch = new DigitalInput(DIO_ELEVATOR_BOTTOM_LIMIT);
+    private final DigitalInput topLimitSwitch = new DigitalInput(DIO_ELEVATOR_TOP_LIMIT);
     // Mechanism Tuning Constants
     private static final double ELEVATOR_MAX_SPEED = 0.5;  // Max output for elevator (50%) to prevent excessive strain
     private static final double INTAKE_SPEED = 0.8;        // Max speed for picking up the game piece (80%)
@@ -110,7 +117,8 @@ public class Robot extends TimedRobot {
     private GenericEntry leftDriveOutputEntry;
     private GenericEntry rightDriveOutputEntry;
     private GenericEntry turningStatusEntry;
-    
+    private GenericEntry bottomLimitEntry;
+    private GenericEntry topLimitEntry;
     // Mechanism Status/Current Entries
     private GenericEntry elevatorCurrentEntry;
     private GenericEntry manipulatorCurrentEntry;
@@ -293,7 +301,16 @@ public class Robot extends TimedRobot {
                 .withWidget(BuiltInWidgets.kTextView) // Widget: Displays a text/string status (often colored).
                 .withPosition(6, 3).withSize(4, 1) 
                 .getEntry();
-
+        // Bottom Limit Switch Display
+        bottomLimitEntry = driveTab.add("Bottom Limit Hit", false)
+                .withWidget(BuiltInWidgets.kBooleanBox)
+                .withPosition(0, 4).withSize(2, 1) // Example position (adjust as needed)
+                .getEntry();
+        //Top Limit Switch Display
+        topLimitEntry = driveTab.add("Top Limit Hit", false)
+                .withWidget(BuiltInWidgets.kBooleanBox)
+                .withPosition(2, 4).withSize(2, 1) // Example position (adjust as needed)
+                .getEntry();
 
         // =======================================================================
         // --- Shuffleboard Tab Setup: Autonomous Tab ---
@@ -391,6 +408,10 @@ public class Robot extends TimedRobot {
 
         double manipulatorCurrent = manipulatorMotor.getOutputCurrent();
         manipulatorCurrentEntry.setDouble(manipulatorCurrent);
+    
+        // Limit Switch Diagnostic Update 
+        bottomLimitEntry.setBoolean(bottomLimitSwitch.get());
+        topLimitEntry.setBoolean(topLimitSwitch.get());
     }
 
     /**
@@ -482,7 +503,7 @@ public class Robot extends TimedRobot {
 
         // --- Drive and Mechanism Input Mapping ---
         if (SINGLE_OPERATOR.equals(controlMode)) {
-            // Drive inputs (Driver's Left Y/X for Arcade, Left/Right Y for Tank)
+            // Drive inputs 
             forward = -driver.getLeftY(); 
             turn = -driver.getLeftX(); 
             left = -driver.getLeftY(); 
@@ -523,12 +544,10 @@ public class Robot extends TimedRobot {
         if (Math.abs(manipulatorInput) > DEADBAND) {
             if (manipulatorInput < 0) {
                 // Stick Forward (Negative Y): Intake
-                // Output is positive, scaled by INTAKE_SPEED
                 manipulatorOutput = -manipulatorInput * INTAKE_SPEED; 
                 manipulatorStatusEntry.setString("INTAKE (Prop: " + String.format("%.2f", manipulatorOutput) + ")");
             } else {
                 // Stick Backward (Positive Y): Output/Eject
-                // Output is negative, scaled by OUTPUT_SPEED (which is already negative)
                 manipulatorOutput = manipulatorInput * OUTPUT_SPEED;
                 manipulatorStatusEntry.setString("OUTPUT (Prop: " + String.format("%.2f", manipulatorOutput) + ")");
             }
@@ -543,14 +562,13 @@ public class Robot extends TimedRobot {
 
         // --- Drive Input Post-Processing (Executed BEFORE sending to DifferentialDrive) ---
 
-        // 1. Apply Deadband to eliminate stick drift
+        // 1. Apply Deadband
         forward = applyDeadband(forward, DEADBAND);
         turn = applyDeadband(turn, DEADBAND);
         left = applyDeadband(left, DEADBAND);
         right = applyDeadband(right, DEADBAND);
         
-        // 2. Apply Input Shaping (Cubing) for finer control near the center
-        // Output = Input * Input * Input. This slows down low stick deflections.
+        // 2. Apply Input Shaping (Cubing)
         forward = forward * forward * forward;
         turn = turn * turn * turn; 
         left = left * left * left;
@@ -563,31 +581,46 @@ public class Robot extends TimedRobot {
 
         switch (mode) {
             case DRIVE_TANK:
-                // TANK drive uses the Left and Right Y axes (separate sticks)
-                // Apply the overall speed scale to the output
+                // TANK drive
                 drive.tankDrive(left * speedScale, right * speedScale);
                 break;
             case DRIVE_CURVATURE:
-                // CURVATURE drive uses Left Stick (Y for speed, X for turn). Boolean true enables quick turn.
+                // CURVATURE drive
                 drive.curvatureDrive(forward * speedScale, turn * turnScale, true);
                 break;
             case DRIVE_ARCADE:
             default:
-                // ARCADE drive uses Left Stick (Y for speed, X for turn).
+                // ARCADE drive
                 drive.arcadeDrive(forward * speedScale, turn * turnScale);
                 break;
         }
-
-        // --- 6. Elevator Control Execution ---
         
+        // --- 6. Elevator Control Execution with Limit Switches (SAFETY CRITICAL) ---
+
         // Apply deadband to the mechanism input as well
         if (Math.abs(elevatorSpeed) < 0.05) elevatorSpeed = 0;
+
+        // Read the state of the limit switches
+        boolean isAtBottom = bottomLimitSwitch.get(); // true if switch is pressed (at physical bottom)
+        boolean isAtTop = topLimitSwitch.get();      // true if switch is pressed (at physical top)
+
+        // Limit Switch Override Logic: If switch is hit AND commanding motion INTO the switch, set speed to 0.
+
+        // If at the bottom limit AND commanding down (negative speed)
+        if (isAtBottom && elevatorSpeed < 0) {
+            elevatorSpeed = 0; // STOP downward motion
+        }
+
+        // If at the top limit AND commanding up (positive speed)
+        if (isAtTop && elevatorSpeed > 0) {
+            elevatorSpeed = 0; // STOP upward motion
+        }
         
-        // Set motor speed (Note: elevatorSpeed already includes ELEVATOR_MAX_SPEED scaling)
+        // Set motor speed
         elevatorMotor.set(elevatorSpeed);
-        
-        // Update dashboard with the scaled output percentage (0 to 100)
-        elevatorOutputEntry.setDouble(elevatorSpeed * 100.0 / ELEVATOR_MAX_SPEED); 
+
+        // Update dashboard with the set speed
+        elevatorOutputEntry.setDouble(elevatorMotor.get() * 100.0);
     }
     
     /**
