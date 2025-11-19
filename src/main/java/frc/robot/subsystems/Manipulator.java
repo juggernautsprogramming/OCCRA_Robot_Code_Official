@@ -24,7 +24,12 @@ public class Manipulator extends SubsystemBase {
         
         motor.set(currentSpeed);
     }
-    
+    public void initialize() {
+        configureMotors();
+    }
+    private void configureMotors() {
+        System.out.println("Manipulator Initialized");
+    }
     public void stop() { 
         setSpeed(0); 
     }

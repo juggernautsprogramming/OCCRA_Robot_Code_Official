@@ -40,7 +40,9 @@ public class Elevator extends SubsystemBase {
             throw e;
         }
     }
-    
+    public void initialize() {
+        System.out.println("initialized");
+    }
     public void setSpeed(double speed) {
         if (!motorInitialized) {
             System.err.println("Elevator motor not initialized - cannot set speed");

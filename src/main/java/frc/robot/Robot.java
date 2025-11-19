@@ -7,7 +7,6 @@ import com.ctre.phoenix.motorcontrol.NeutralMode;
 // (Now handled in subsystems)
 
 import edu.wpi.first.networktables.GenericEntry;
-import edu.wpi.first.wpilibj.PowerDistribution;
 // --- WPILib Core Imports ---
 import edu.wpi.first.wpilibj.TimedRobot;
 import edu.wpi.first.wpilibj.Timer;
@@ -35,9 +34,6 @@ public class Robot extends TimedRobot {
     private final Elevator elevator = new Elevator();
     private final Manipulator manipulator = new Manipulator();
 
-    // --- Hardware Definitions ---
-    private final PowerDistribution pdDevice = new PowerDistribution();
-
     // --- Timers ---
     private final Timer turnTimer = new Timer();
 
@@ -47,18 +43,18 @@ public class Robot extends TimedRobot {
 
     // --- Autonomous Setup ---
     private SendableChooser<String> autoChooser = new SendableChooser<>();
-    private static final String AUTO_DEFAULT = "Drive Forward";
-    private static final String AUTO_TURN = "Turn 180°";
+    private static final String AUTO_DEFAULT = "Drive only";
+    private static final String AUTO_FULL = "Full Auto";
     private String selectedAuto;
     // Robot.java (inside public class Robot extends TimedRobot)
 
     private enum AutoState {
-        IDLE,               
-        STEP_1_DRIVE,       
-        STEP_2_TURN,        
-        STEP_3_RAISE_ARM,   
-        STEP_4_EJECT,         
-        STEP_5_DONE         
+        IDLE,
+        STEP_1_DRIVE,
+        STEP_2_TURN,
+        STEP_3_RAISE_ARM,
+        STEP_4_EJECT,
+        STEP_5_DONE
     }
     private AutoState currentAutoState = AutoState.IDLE;
 
@@ -67,7 +63,7 @@ public class Robot extends TimedRobot {
     // --- Control Mode Constants ---
     private static final String SINGLE_OPERATOR = "Solo";
     private static final String DUAL_OPERATOR = "Co-Op";
-    
+
     // --- Drive Mode Constants ---
     private static final String DRIVE_ARCADE = "Arcade";
     private static final String DRIVE_TANK = "Tank";
@@ -122,7 +118,7 @@ public class Robot extends TimedRobot {
     public void robotInit() {
         // Initialize subsystems
         driveTrain.initialize();
-        
+
         setupShuffleboard();
     }
 
@@ -146,7 +142,7 @@ public class Robot extends TimedRobot {
         driveTab.add("Control Mode", controlModeChooser)
                 .withWidget(BuiltInWidgets.kComboBoxChooser)
                 .withPosition(0, 0).withSize(2, 1);
-                
+
         driveTab.add("Drive Mode", driveModeChooser)
                 .withWidget(BuiltInWidgets.kComboBoxChooser)
                 .withPosition(2, 0).withSize(2, 1);
@@ -158,7 +154,7 @@ public class Robot extends TimedRobot {
         batteryWarningEntryDrive = driveTab.add("Battery Status", "OK")
                 .withPosition(6, 0).withSize(4, 1)
                 .getEntry();
-                
+
         // Row 1 (Y=1): Drive Motor Feedback (Output and Current)
         leftDriveOutputEntry = driveTab.add("Left Output (%)", 0.0)
                 .withWidget(BuiltInWidgets.kDial)
@@ -191,7 +187,7 @@ public class Robot extends TimedRobot {
                 .withWidget(BuiltInWidgets.kBooleanBox)
                 .withPosition(6, 2).withSize(2, 1)
                 .getEntry();
-        
+
         // Combine Top/Bottom limits to save space (must be done in a group)
         // Or if you only want the boolean boxes:
         bottomLimitEntry = driveTab.add("Bottom Limit", false)
@@ -217,7 +213,7 @@ public class Robot extends TimedRobot {
         manipulatorCurrentEntry = driveTab.add("Manipulator Current (A)", 0.0)
                 .withPosition(4, 3).withSize(3, 1)
                 .getEntry();
-        
+
         manipulatorStatusEntry = driveTab.add("Manipulator Status", "OFF")
                 .withPosition(7, 3).withSize(3, 1)
                 .getEntry();
@@ -230,11 +226,11 @@ public class Robot extends TimedRobot {
         rightTriggerEntry = driveTab.add("Right Trigger (Up)", 0)
                 .withPosition(2, 4).withSize(2, 1)
                 .getEntry();
-        
+
         leftEncoderVelocityEntry = driveTab.add("Left Velocity (t/100ms)", 0.0)
                 .withPosition(4, 4).withSize(3, 1)
                 .getEntry();
-        
+
         rightEncoderVelocityEntry = driveTab.add("Right Velocity (t/100ms)", 0.0)
                 .withPosition(7, 4).withSize(3, 1)
                 .getEntry();
@@ -242,39 +238,39 @@ public class Robot extends TimedRobot {
         // Autonomous Tab Setup
         // =======================================================================
 
-        autoChooser.setDefaultOption("Drive Forward", AUTO_DEFAULT);
-        autoChooser.addOption("Turn 180°", AUTO_TURN);
+        autoChooser.setDefaultOption("Drive Only", AUTO_DEFAULT);
+        autoChooser.addOption("FULL AUTO", AUTO_FULL);
 
         autoTab.add("1. Select Autonomous Mode", autoChooser)
-           .withPosition(0, 0).withSize(3, 1);
+                .withPosition(0, 0).withSize(3, 1);
         batteryVoltageEntry = autoTab.add("Battery Voltage (V)", 12.5)
-            .withWidget(BuiltInWidgets.kVoltageView)
-            .withPosition(5, 0).withSize(3, 1)
-            .getEntry();
+                .withWidget(BuiltInWidgets.kVoltageView)
+                .withPosition(5, 0).withSize(3, 1)
+                .getEntry();
 
         selectedAutoEntry = autoTab.add("Selected Auto", AUTO_DEFAULT)
-            .withWidget(BuiltInWidgets.kTextView)
-            .withPosition(8, 0).withSize(2, 1)
-            .getEntry();
-        
+                .withWidget(BuiltInWidgets.kTextView)
+                .withPosition(8, 0).withSize(2, 1)
+                .getEntry();
+
         autoStatusEntry = autoTab.add("Auto Status", "Ready for Init")
-            .withWidget(BuiltInWidgets.kTextView)
-            .withPosition(0, 1).withSize(10, 1)
-            .getEntry();
+                .withWidget(BuiltInWidgets.kTextView)
+                .withPosition(0, 1).withSize(10, 1)
+                .getEntry();
 
         // =======================================================================
         // Disabled Tab Setup
         // =======================================================================
 
         batteryWarningEntryDisabled = disabledTab.add("Battery Status", "OK")
-            .withWidget(BuiltInWidgets.kTextView)
-            .withPosition(0, 0).withSize(10, 1)
-            .getEntry();
-            
+                .withWidget(BuiltInWidgets.kTextView)
+                .withPosition(0, 0).withSize(10, 1)
+                .getEntry();
+
         motorCurrentsDisabledEntry = disabledTab.add("Disabled Current Check", "Checking...")
-            .withWidget(BuiltInWidgets.kTextView)
-            .withPosition(0, 1).withSize(10, 1)
-            .getEntry();
+                .withWidget(BuiltInWidgets.kTextView)
+                .withPosition(0, 1).withSize(10, 1)
+                .getEntry();
     }
 
     /**
@@ -284,10 +280,10 @@ public class Robot extends TimedRobot {
     public void robotPeriodic() {
         // Update battery voltage and warnings
         updateBatteryStatus();
-        
+
         // Update dashboard with subsystem data
         updateDashboard();
-        
+
         // Run periodic methods for all subsystems
         driveTrain.periodic();
         elevator.periodic();
@@ -298,16 +294,18 @@ public class Robot extends TimedRobot {
      * Updates battery status and warnings
      */
     private void updateBatteryStatus() {
-        double voltage = pdDevice.getVoltage();
+        // *** COMMENTED OUT PDH/PDP CALL TO STOP CAN ERRORS AND LOOP OVERRUNS ***
+        // double voltage = pdDevice.getVoltage();
+        double voltage = 12.0; // Use dummy value while troubleshooting CAN
         batteryVoltageEntry.setDouble(voltage);
 
-        if (voltage < 10.5) { 
+        if (voltage < 10.5) {
             String warning = "!!! LOW BATTERY: " + String.format("%.2f", voltage) + " V !!!";
             batteryWarningEntryDrive.setString(warning);
             batteryWarningEntryDisabled.setString(warning);
         } else {
-            batteryWarningEntryDrive.setString("Battery OK: " + String.format("%.2f", voltage) + " V");
-            batteryWarningEntryDisabled.setString("Battery OK: " + String.format("%.2f", voltage) + " V");
+            batteryWarningEntryDrive.setString("Battery OK (Using Dummy Value)");
+            batteryWarningEntryDisabled.setString("Battery OK (Using Dummy Value)");
         }
     }
 
@@ -322,10 +320,10 @@ public class Robot extends TimedRobot {
         rightDriveCurrentEntry.setDouble(driveTrain.getRightCurrent());
         turningStatusEntry.setBoolean(driveTrain.isTurning180());
         // Drive train encoder stats
-                leftEncoderPositionEntry.setDouble(driveTrain.getLeftEncoderPosition());
-                rightEncoderPositionEntry.setDouble(driveTrain.getRightEncoderPosition());
-                leftEncoderVelocityEntry.setDouble(driveTrain.getLeftEncoderVelocity());
-                rightEncoderVelocityEntry.setDouble(driveTrain.getRightEncoderVelocity());
+        leftEncoderPositionEntry.setDouble(driveTrain.getLeftEncoderPosition());
+        rightEncoderPositionEntry.setDouble(driveTrain.getRightEncoderPosition());
+        leftEncoderVelocityEntry.setDouble(driveTrain.getLeftEncoderVelocity());
+        rightEncoderVelocityEntry.setDouble(driveTrain.getRightEncoderVelocity());
         // Elevator stats
         elevatorOutputEntry.setDouble(elevator.getOutput());
         elevatorCurrentEntry.setDouble(elevator.getCurrent());
@@ -386,7 +384,9 @@ public class Robot extends TimedRobot {
 
         // Execute turn macro
         if (driveTrain.isTurning180()) {
-            if (turnTimer.get() < Constants.TURN_TIME) {
+            // *** NOTE: Constants.TURN_TIME is not defined here. Using 1.0s for example. ***
+            final double MACRO_TURN_TIME = 1.0; 
+            if (turnTimer.get() < MACRO_TURN_TIME) { 
                 driveTrain.turn180();
                 return true; // Skip other drive controls
             } else {
@@ -413,11 +413,12 @@ public class Robot extends TimedRobot {
         double right = -driver.getRightY();
 
         // Apply processing
-        forward = applyDeadband(forward, Constants.DEADBAND);
-        turn = applyDeadband(turn, Constants.DEADBAND);
-        left = applyDeadband(left, Constants.DEADBAND);
-        right = applyDeadband(right, Constants.DEADBAND);
-        
+        final double DEADBAND = 0.1; // Placeholder for Constants.DEADBAND
+        forward = applyDeadband(forward, DEADBAND);
+        turn = applyDeadband(turn, DEADBAND);
+        left = applyDeadband(left, DEADBAND);
+        right = applyDeadband(right, DEADBAND);
+
         forward = forward * forward * forward;
         turn = turn * turn * turn;
         left = left * left * left;
@@ -455,7 +456,7 @@ public class Robot extends TimedRobot {
         double rightTrigger = mechController.getRightTriggerAxis();
         double leftTrigger = mechController.getLeftTriggerAxis();
         double elevatorSpeed = rightTrigger - leftTrigger;
-        
+
         elevator.setSpeed(elevatorSpeed);
 
         // Update trigger displays
@@ -482,17 +483,19 @@ public class Robot extends TimedRobot {
         // Set motors to Coast mode so they can be pushed easily
         driveTrain.setNeutralMode(NeutralMode.Coast);
         driveTrain.stop();
-        
+
         // Stop all mechanisms
         elevator.stop();
         manipulator.stop();
-        
+
         // Disabled Current Diagnostic Check
-        double totalCurrent = pdDevice.getTotalCurrent();
-        if (totalCurrent > 5.0) { 
+        // *** COMMENTED OUT PDH/PDP CALL TO STOP CAN ERRORS ***
+        // double totalCurrent = pdDevice.getTotalCurrent();
+        double totalCurrent = 0.0; // Use dummy value while troubleshooting CAN
+        if (totalCurrent > 5.0) {
             motorCurrentsDisabledEntry.setString("WARNING: High Disabled Current (" + String.format("%.1f", totalCurrent) + " A)! Check wiring.");
         } else {
-            motorCurrentsDisabledEntry.setString("Disabled Current Check: OK (Total: " + String.format("%.1f", totalCurrent) + " A)");
+            motorCurrentsDisabledEntry.setString("Disabled Current Check: OK (Using Dummy Value)");
         }
     }
 
@@ -503,25 +506,23 @@ public class Robot extends TimedRobot {
 
     @Override
     public void autonomousInit() {
-        // 1. Get Auto Settings (if using Shuffleboard choosers)
+    // 1. Get Auto Settings
         selectedAuto = autoChooser.getSelected();
         selectedAutoEntry.setString(selectedAuto);
-        // Note: autoDriveTime is not used in this state machine, but left here for compatibility.
 
-        // 2. Set Motor Neutral Mode to Brake for better stopping and position hold
+        // 2. Set Motor Neutral Mode (Brake)
         driveTrain.setNeutralMode(NeutralMode.Brake);
-        driveTrain.stop(); 
+        driveTrain.stop();
         elevator.stop();
         manipulator.stop();
-    
+
         // 3. Reset and Start the Step Timer
         stepTimer.reset();
         stepTimer.start();
 
-        // 4. Set the Starting State
+        // 4. Set the Starting State (Always Step 1 for both routines)
         currentAutoState = AutoState.STEP_1_DRIVE;
-    
-        autoStatusEntry.setString("Starting Autonomous: " + selectedAuto + " -> STEP 1 (Time-Based)");
+        autoStatusEntry.setString("Starting Autonomous: " + selectedAuto + " -> STEP 1");
     }
     /**
      * Runs continuously during autonomous mode.
@@ -530,78 +531,80 @@ public class Robot extends TimedRobot {
 
     @Override
     public void autonomousPeriodic() {
-        // Note: We use the single 'selectedAuto' for choosing between different routines
-        // For simplicity, this example implements only one routine.
 
         switch (currentAutoState) {
-        
+
             case STEP_1_DRIVE:
-                // CONSTANT: 2.0 seconds at 0.5 power
-                if (stepTimer.get() < 2.0) {
-                    driveTrain.arcadeDrive(0.5, 0.0);
-                    autoStatusEntry.setString("Step 1: Driving Forward (Remaining: " + String.format("%.2f", 2.0 - stepTimer.get()) + "s)");
-                } else {
-                    // Transition: Action complete
-                    driveTrain.stop();
-                    stepTimer.reset();
-                    stepTimer.start();
-                    currentAutoState = AutoState.STEP_2_TURN;
-                    autoStatusEntry.setString("Step 1 Complete. Moving to Step 2: Turn.");
-                }
-                break;
+                final double DRIVE_TIME = 1.2;
+                final double DRIVE_POWER = 1;
+                if (stepTimer.get() < DRIVE_TIME) {
+                driveTrain.arcadeDrive(DRIVE_POWER, 0.0);
+                autoStatusEntry.setString("Step 1: Driving Forward (Remaining: " + String.format("%.2f", DRIVE_TIME - stepTimer.get()) + "s)");
+            } else {
+                driveTrain.stop();
+                stepTimer.reset();
+                stepTimer.start();
+                currentAutoState = AutoState.STEP_2_TURN;
+                autoStatusEntry.setString("Step 1 Complete. Moving to Step 2: Turn.");
+            }
+            break;
 
             case STEP_2_TURN:
-                // CONSTANT: 1.5 seconds at 0.4 turn power (adjust sign for left/right)
-                if (stepTimer.get() < 1.5) {
-                    driveTrain.arcadeDrive(0.0, -0.4); // Assuming negative turn is clockwise/right
-                    autoStatusEntry.setString("Step 2: Turning (Remaining: " + String.format("%.2f", 1.5 - stepTimer.get()) + "s)");
+                final double TURN_TIME = 0.5;
+                final double TURN_POWER = -1.05;
+                if (stepTimer.get() < TURN_TIME) {
+                    driveTrain.arcadeDrive(0.0, TURN_POWER);
+                    autoStatusEntry.setString("Step 2: Turning (Remaining: " + String.format("%.2f", TURN_TIME - stepTimer.get()) + "s)");
                 } else {
-                    // Transition: Action complete
                     driveTrain.stop();
                     stepTimer.reset();
                     stepTimer.start();
-                    currentAutoState = AutoState.STEP_3_RAISE_ARM;
-                    autoStatusEntry.setString("Step 2 Complete. Moving to Step 3: Raise Arm.");
+                
+                    if (AUTO_FULL.equals(selectedAuto)) {
+                        currentAutoState = AutoState.STEP_3_RAISE_ARM;
+                        autoStatusEntry.setString("Step 2 Complete. Moving to Step 3: Raise Arm.");
+                    } else {
+                        currentAutoState = AutoState.STEP_5_DONE;
+                        autoStatusEntry.setString("Step 2 Complete. Autonomous Sequence Complete (Drive Only).");
+                    }
                 }
                 break;
 
-            case STEP_3_RAISE_ARM:
-                // CONDITION: Stop when limit switch is hit OR 2.5 seconds pass (failsafe)
+                case STEP_3_RAISE_ARM:
                 if (!elevator.isAtTop() && stepTimer.get() < 2.5) {
-                    elevator.setSpeed(0.6); // Command arm movement
+                    elevator.setSpeed(0.6);
                     autoStatusEntry.setString("Step 3: Raising Arm (Time: " + String.format("%.2f", stepTimer.get()) + "s)");
-                } else {
-                    // Transition: Action complete (Limit reached or time exceeded)
-                    elevator.stop();
-                    stepTimer.reset();
-                    stepTimer.start();
-                    currentAutoState = AutoState.STEP_4_EJECT;
-                    autoStatusEntry.setString("Step 3 Complete. Moving to Step 4: Eject.");
-                }
-                break;
-
-            case STEP_4_EJECT:
-                // CONSTANT: Run manipulator output for 0.75 seconds
-                if (stepTimer.get() < 0.75) {
-                    manipulator.setSpeed(Constants.OUTPUT_SPEED); // OUTPUT_SPEED should be a constant like -0.8
-                    autoStatusEntry.setString("Step 4: Ejecting Object (Remaining: " + String.format("%.2f", 0.75 - stepTimer.get()) + "s)");
-                } else {
+            } else {
                 // Transition: Action complete
-                    manipulator.stop();
-                    currentAutoState = AutoState.STEP_5_DONE;
-                    autoStatusEntry.setString("Step 4 Complete. Moving to DONE.");
-                }
-                break;
-
-            case STEP_5_DONE:
-                default:
-                    // Final state: stop everything
-                    driveTrain.stop();
-                    elevator.stop();
-                    manipulator.stop();
-                    autoStatusEntry.setString("Autonomous Sequence Complete.");
-                    break;
+                elevator.stop();
+                stepTimer.reset();
+                stepTimer.start();
+                currentAutoState = AutoState.STEP_4_EJECT;
+                autoStatusEntry.setString("Step 3 Complete. Moving to Step 4: Eject.");
             }
+            break;
+
+        case STEP_4_EJECT:
+            final double EJECT_TIME = 0.75;
+            final double OUTPUT_SPEED = -0.8;
+            if (stepTimer.get() < EJECT_TIME) {
+                manipulator.setSpeed(OUTPUT_SPEED);
+                autoStatusEntry.setString("Step 4: Ejecting Object (Remaining: " + String.format("%.2f", EJECT_TIME - stepTimer.get()) + "s)");
+            } else {
+                manipulator.stop();
+                currentAutoState = AutoState.STEP_5_DONE;
+                autoStatusEntry.setString("Step 4 Complete. Moving to DONE.");
+            }
+            break;
+
+        case STEP_5_DONE:
+        default:
+            driveTrain.stop();
+            elevator.stop();
+            manipulator.stop();
+            autoStatusEntry.setString("Autonomous Sequence Complete.");
+            break;
+        }
     }
 
     /**
