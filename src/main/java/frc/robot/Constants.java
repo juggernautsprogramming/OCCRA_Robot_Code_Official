@@ -15,8 +15,8 @@ public final class Constants {
     
     // Mechanism Speeds
     public static final double ELEVATOR_MAX_SPEED = 0.5;
-    public static final double INTAKE_SPEED = 0.8;
-    public static final double OUTPUT_SPEED = -0.5;
+    public static final double INTAKE_SPEED = 1;
+    public static final double OUTPUT_SPEED = -1;
     
     // Drive Constants
     public static final double SPEED_SCALE = 0.7;

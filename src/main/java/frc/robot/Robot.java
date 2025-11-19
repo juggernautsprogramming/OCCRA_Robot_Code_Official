@@ -39,7 +39,6 @@ public class Robot extends TimedRobot {
     private final PowerDistribution pdDevice = new PowerDistribution();
 
     // --- Timers ---
-    private final Timer autoTimer = new Timer();
     private final Timer turnTimer = new Timer();
 
     // --- Controllers ---
@@ -51,8 +50,20 @@ public class Robot extends TimedRobot {
     private static final String AUTO_DEFAULT = "Drive Forward";
     private static final String AUTO_TURN = "Turn 180°";
     private String selectedAuto;
-    private double autoDriveTime;
+    // Robot.java (inside public class Robot extends TimedRobot)
 
+    private enum AutoState {
+        IDLE,               
+        STEP_1_DRIVE,       
+        STEP_2_TURN,        
+        STEP_3_RAISE_ARM,   
+        STEP_4_EJECT,         
+        STEP_5_DONE         
+    }
+    private AutoState currentAutoState = AutoState.IDLE;
+
+    // Use a separate timer for managing the duration of each state/step
+    private final Timer stepTimer = new Timer();
     // --- Control Mode Constants ---
     private static final String SINGLE_OPERATOR = "Solo";
     private static final String DUAL_OPERATOR = "Co-Op";
@@ -64,7 +75,6 @@ public class Robot extends TimedRobot {
 
     // --- Shuffleboard Entries ---
     // General/Auto Tab
-    private GenericEntry autoDriveTimeEntry;
     private GenericEntry batteryVoltageEntry;
     private GenericEntry selectedAutoEntry;
     private GenericEntry autoStatusEntry;
@@ -237,11 +247,6 @@ public class Robot extends TimedRobot {
 
         autoTab.add("1. Select Autonomous Mode", autoChooser)
            .withPosition(0, 0).withSize(3, 1);
-
-        autoDriveTimeEntry = autoTab.add("2. Auto Drive Time (s)", 2.0)
-            .withPosition(3, 0).withSize(2, 1)
-            .getEntry();
-
         batteryVoltageEntry = autoTab.add("Battery Voltage (V)", 12.5)
             .withWidget(BuiltInWidgets.kVoltageView)
             .withPosition(5, 0).withSize(3, 1)
@@ -494,49 +499,109 @@ public class Robot extends TimedRobot {
     /**
      * Runs once when the robot enters autonomous mode.
      */
+    // Robot.java
+
     @Override
     public void autonomousInit() {
+        // 1. Get Auto Settings (if using Shuffleboard choosers)
         selectedAuto = autoChooser.getSelected();
         selectedAutoEntry.setString(selectedAuto);
-        autoDriveTime = autoDriveTimeEntry.getDouble(2.0);
-        autoTimer.reset();
-        autoTimer.start();
-        autoStatusEntry.setString("Starting Autonomous: " + selectedAuto);
-        
-        driveTrain.setNeutralMode(NeutralMode.Brake);
-        driveTrain.stop();
-    }
+        // Note: autoDriveTime is not used in this state machine, but left here for compatibility.
 
+        // 2. Set Motor Neutral Mode to Brake for better stopping and position hold
+        driveTrain.setNeutralMode(NeutralMode.Brake);
+        driveTrain.stop(); 
+        elevator.stop();
+        manipulator.stop();
+    
+        // 3. Reset and Start the Step Timer
+        stepTimer.reset();
+        stepTimer.start();
+
+        // 4. Set the Starting State
+        currentAutoState = AutoState.STEP_1_DRIVE;
+    
+        autoStatusEntry.setString("Starting Autonomous: " + selectedAuto + " -> STEP 1 (Time-Based)");
+    }
     /**
      * Runs continuously during autonomous mode.
      */
+    // Robot.java
+
     @Override
     public void autonomousPeriodic() {
-        double remainingTime = autoDriveTime - autoTimer.get();
-        String status = "Time Remaining: " + String.format("%.2f", remainingTime) + "s";
+        // Note: We use the single 'selectedAuto' for choosing between different routines
+        // For simplicity, this example implements only one routine.
+
+        switch (currentAutoState) {
         
-        switch (selectedAuto) {
-            case AUTO_TURN:
-                if (autoTimer.get() < Constants.TURN_TIME) {
-                    driveTrain.turn180();
-                    autoStatusEntry.setString("Executing Turn 180°. " + status);
+            case STEP_1_DRIVE:
+                // CONSTANT: 2.0 seconds at 0.5 power
+                if (stepTimer.get() < 2.0) {
+                    driveTrain.arcadeDrive(0.5, 0.0);
+                    autoStatusEntry.setString("Step 1: Driving Forward (Remaining: " + String.format("%.2f", 2.0 - stepTimer.get()) + "s)");
                 } else {
+                    // Transition: Action complete
                     driveTrain.stop();
-                    autoStatusEntry.setString("Turn Complete. Motor Stopped.");
+                    stepTimer.reset();
+                    stepTimer.start();
+                    currentAutoState = AutoState.STEP_2_TURN;
+                    autoStatusEntry.setString("Step 1 Complete. Moving to Step 2: Turn.");
                 }
                 break;
 
-            case AUTO_DEFAULT:
-            default:
-                if (autoTimer.get() < autoDriveTime) {
-                    driveTrain.arcadeDrive(0.5, 0.0);
-                    autoStatusEntry.setString("Driving Forward. " + status);
+            case STEP_2_TURN:
+                // CONSTANT: 1.5 seconds at 0.4 turn power (adjust sign for left/right)
+                if (stepTimer.get() < 1.5) {
+                    driveTrain.arcadeDrive(0.0, -0.4); // Assuming negative turn is clockwise/right
+                    autoStatusEntry.setString("Step 2: Turning (Remaining: " + String.format("%.2f", 1.5 - stepTimer.get()) + "s)");
                 } else {
+                    // Transition: Action complete
                     driveTrain.stop();
-                    autoStatusEntry.setString("Drive Complete. Motor Stopped.");
+                    stepTimer.reset();
+                    stepTimer.start();
+                    currentAutoState = AutoState.STEP_3_RAISE_ARM;
+                    autoStatusEntry.setString("Step 2 Complete. Moving to Step 3: Raise Arm.");
                 }
                 break;
-        }
+
+            case STEP_3_RAISE_ARM:
+                // CONDITION: Stop when limit switch is hit OR 2.5 seconds pass (failsafe)
+                if (!elevator.isAtTop() && stepTimer.get() < 2.5) {
+                    elevator.setSpeed(0.6); // Command arm movement
+                    autoStatusEntry.setString("Step 3: Raising Arm (Time: " + String.format("%.2f", stepTimer.get()) + "s)");
+                } else {
+                    // Transition: Action complete (Limit reached or time exceeded)
+                    elevator.stop();
+                    stepTimer.reset();
+                    stepTimer.start();
+                    currentAutoState = AutoState.STEP_4_EJECT;
+                    autoStatusEntry.setString("Step 3 Complete. Moving to Step 4: Eject.");
+                }
+                break;
+
+            case STEP_4_EJECT:
+                // CONSTANT: Run manipulator output for 0.75 seconds
+                if (stepTimer.get() < 0.75) {
+                    manipulator.setSpeed(Constants.OUTPUT_SPEED); // OUTPUT_SPEED should be a constant like -0.8
+                    autoStatusEntry.setString("Step 4: Ejecting Object (Remaining: " + String.format("%.2f", 0.75 - stepTimer.get()) + "s)");
+                } else {
+                // Transition: Action complete
+                    manipulator.stop();
+                    currentAutoState = AutoState.STEP_5_DONE;
+                    autoStatusEntry.setString("Step 4 Complete. Moving to DONE.");
+                }
+                break;
+
+            case STEP_5_DONE:
+                default:
+                    // Final state: stop everything
+                    driveTrain.stop();
+                    elevator.stop();
+                    manipulator.stop();
+                    autoStatusEntry.setString("Autonomous Sequence Complete.");
+                    break;
+            }
     }
 
     /**
